@@ -1,13 +1,15 @@
 import re
+from argparse import ArgumentParser
 
 import glob2
 import librosa
-import soundfile as sf
-from matplotlib import pyplot as plt
 import numpy as np
+import progressbar
+import soundfile as sf
+from dtw import dtw
+from matplotlib import pyplot as plt
 from sklearn.metrics import confusion_matrix
 from sklearn.model_selection import train_test_split
-from dtw import dtw
 
 
 def extract_number(sample_name):
@@ -15,44 +17,44 @@ def extract_number(sample_name):
 
 
 def normalize(data):
-    return data  / np.linalg.norm(data)
+    return data / np.linalg.norm(data)
 
 
 def compare_plots():
-    data, samplerate = sf.read('train/AK1C1_0_.WAV')
+    data, samplerate = sf.read('numbers/train/AK1C1_0_.WAV')
     plt.plot(normalize(data), label='train', alpha=0.8)
-    data, samplerate = sf.read('test/sample_0.wav')
+    data, samplerate = sf.read('numbers/test/sample_0.wav')
     plt.plot(normalize(data), label='test', alpha=0.8)
     plt.legend()
     plt.show()
     return
 
 
-def main():
+def collect_data(dataset_name):
     X = []
     y = []
-    for path in glob2.glob('train/*'):
-        data, samplerate = sf.read(path)
+    number_of_classes = 0
+    class_to_number = {}
+    for path in glob2.glob(f'{dataset_name}/**/*.WAV'):
+        sample_class = path.split('/')[1]
+        data, sample_rate = sf.read(path)
         data = normalize(data)
-        X.append(np.array(librosa.feature.mfcc(data, samplerate, n_mfcc=13)).T)
-        y.append(extract_number(path))
+        X.append(np.array(librosa.feature.mfcc(data, sample_rate, n_mfcc=13)).T)
+        if sample_class not in class_to_number:
+            class_to_number[sample_class] = number_of_classes
+            number_of_classes += 1
+        class_number = class_to_number[sample_class]
+        y.append(class_number)
+    return train_test_split(X, y, test_size=0.25)
 
-    # split train data
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.0)
-    # or load train
-    # X_train = X
-    # y_train = y
-    # X_test = []
-    # y_test = []
-    for path in glob2.glob('test/*'):
-        data, samplerate = sf.read(path)
-        data = normalize(data)
-        X_test.append(np.array(librosa.feature.mfcc(data, samplerate, n_mfcc=13)).T)
-        y_test.append(extract_number(path))
+
+def main(dataset):
+    X_train, X_test, y_train, y_test = collect_data(dataset)
 
     y_true = []
     y_pred = []
-    for sample, sample_class in zip(X_test, y_test):
+    bar = progressbar.ProgressBar(max_value=len(y_test))
+    for sample, sample_class in bar(zip(X_test, y_test)):
         min_dist = np.inf
         predicted_class = None
         for other, other_class in zip(X_train, y_train):  # kNN with train train
@@ -60,7 +62,6 @@ def main():
             if distance < min_dist:
                 min_dist = distance
                 predicted_class = other_class
-            print(sample_class, other_class, distance)
         y_true.append(sample_class)
         y_pred.append(predicted_class)
     mat = confusion_matrix(y_true, y_pred)
@@ -76,4 +77,7 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    parser = ArgumentParser()
+    parser.add_argument('--dataset', help='Name of dataset', default='commands', required=False)
+    args = parser.parse_args()
+    main(args.dataset)
