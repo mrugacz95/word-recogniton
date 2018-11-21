@@ -30,11 +30,15 @@ def compare_plots():
     return
 
 
+number_of_classes = 0
+class_to_number = {}
+
+
 def collect_data(dataset_name):
+    global class_to_number
+    global number_of_classes
     X = []
     y = []
-    number_of_classes = 0
-    class_to_number = {}
     for path in glob2.glob(f'{dataset_name}/**/*.WAV'):
         sample_class = path.split('/')[1]
         data, sample_rate = sf.read(path)
@@ -70,7 +74,15 @@ def main(dataset):
 
     for (i, j), z in np.ndenumerate(mat):
         ax.text(j, i, str(z), ha='center', va='center', size='x-small')
-
+    ticks = []
+    ticks_pos = []
+    for class_name in class_to_number.keys():
+        ticks_pos.append(class_to_number[class_name])
+        ticks.append(class_name)
+    ax.set_xticks(ticks_pos)
+    ax.set_xticklabels(ticks)
+    ax.set_yticks(ticks_pos)
+    ax.set_yticklabels(ticks)
     print(y_pred)
     print(y_true)
     plt.show()
